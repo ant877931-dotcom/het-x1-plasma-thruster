@@ -1,0 +1,1234 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HET-X1 // Interactive 3D Hall-Effect Plasma Thruster &amp; Orbital Mission Simulator</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+        },
+      },
+    };
+  </script>
+
+  <!-- FontAwesome 6 Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="bg-slate-950 text-slate-100 antialiased selection:bg-cyan-500 selection:text-slate-950">
+
+  <!-- ====================================================================
+       FULL-VIEWPORT 3D WEBGL CANVAS CONTAINER
+       ==================================================================== -->
+  <div id="webgl-container" aria-label="Interactive 3D Hall-Effect Thruster Viewport"></div>
+  <div class="hud-grid-overlay"></div>
+
+  <!-- 3D Raycast Hover Tooltip -->
+  <div id="part-hover-tooltip" class="fixed z-40 hidden px-3 py-2 rounded-lg glass-panel-cyan text-xs shadow-2xl">
+    <div class="flex items-center gap-2">
+      <span id="tooltip-dot" class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+      <span id="tooltip-title" class="font-semibold text-white tracking-wide">Component</span>
+    </div>
+    <div id="tooltip-subtitle" class="text-[11px] text-cyan-300/90 font-mono mt-0.5">Click to inspect</div>
+  </div>
+
+  <!-- ====================================================================
+       TOP NAVIGATION BAR
+       ==================================================================== -->
+  <header class="fixed top-3 left-3 right-3 z-30 flex flex-wrap items-center justify-between gap-2.5 px-3.5 py-2 rounded-xl glass-panel">
+    <!-- Brand & Telemetry Identifier -->
+    <div class="flex items-center gap-2.5">
+      <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-cyan-500/30 to-blue-600/30 border border-cyan-400/50 flex items-center justify-center shadow-inner">
+        <i class="fa-solid fa-atom text-cyan-400 text-lg animate-spin" style="animation-duration: 14s;"></i>
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="text-xs md:text-sm font-bold tracking-wider uppercase text-white">
+            HET-X1 <span class="text-cyan-400 font-normal">Plasma Propulsion Lab</span>
+          </h1>
+          <span class="hidden xl:inline-block px-2 py-0.5 text-[10px] font-mono uppercase tracking-widest rounded bg-cyan-500/15 text-cyan-300 border border-cyan-400/30">
+            E×B Hall Thruster
+          </span>
+        </div>
+        <p class="text-[10px] text-slate-400 hidden xl:block">
+          3D Assembly, Multi-Species Plasma Physics, Web Audio Synth &amp; Astrodynamics
+        </p>
+      </div>
+    </div>
+
+    <!-- Center Mode Switcher Tabs (Modes A, B, C, D, E) -->
+    <nav class="flex flex-wrap items-center gap-1 bg-slate-950/75 p-1 rounded-lg border border-slate-800" aria-label="Simulation Modes">
+      <button id="tab-mode-build" data-mode="build" class="mode-tab px-2.5 py-1.5 rounded-md text-xs font-semibold tracking-wide text-slate-300 border border-transparent hover:text-white flex items-center gap-1.5">
+        <i class="fa-solid fa-screwdriver-wrench text-cyan-400"></i>
+        <span>1. Build Thruster</span>
+      </button>
+      <button id="tab-mode-learn" data-mode="learn" class="mode-tab px-2.5 py-1.5 rounded-md text-xs font-semibold tracking-wide text-slate-300 border border-transparent hover:text-white flex items-center gap-1.5">
+        <i class="fa-solid fa-graduation-cap text-cyan-400"></i>
+        <span>2. How It Works</span>
+      </button>
+      <button id="tab-mode-sim" data-mode="sim" class="mode-tab active px-2.5 py-1.5 rounded-md text-xs font-semibold tracking-wide text-slate-300 border border-transparent hover:text-white flex items-center gap-1.5">
+        <i class="fa-solid fa-sliders text-cyan-400"></i>
+        <span>3. Live Physics Lab</span>
+      </button>
+      <button id="tab-mode-orbit" data-mode="orbit" class="mode-tab px-2.5 py-1.5 rounded-md text-xs font-semibold tracking-wide text-slate-300 border border-transparent hover:text-white flex items-center gap-1.5">
+        <i class="fa-solid fa-earth-americas text-emerald-400"></i>
+        <span>4. Orbital Mission Sim</span>
+      </button>
+      <button id="tab-mode-game" data-mode="game" class="mode-tab px-2.5 py-1.5 rounded-md text-xs font-semibold tracking-wide text-slate-300 border border-transparent hover:text-white flex items-center gap-1.5">
+        <i class="fa-solid fa-gamepad text-amber-400"></i>
+        <span>5. Pilot &amp; Gimbal Game</span>
+      </button>
+    </nav>
+
+    <!-- Right Viewport & Procedural Web Audio Controls -->
+    <div class="flex items-center gap-1.5">
+      <!-- Procedural Web Audio Synthesizer Controls -->
+      <div class="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-slate-900/90 border border-slate-700/90" title="Procedural Web Audio Plasma Synthesizer">
+        <button id="btn-toggle-audio" class="text-xs font-medium text-cyan-300 hover:text-white flex items-center gap-1.5 transition" aria-label="Toggle Plasma Audio Synthesizer">
+          <i id="icon-audio-state" class="fa-solid fa-volume-high text-cyan-400"></i>
+          <div id="audio-eq-indicator" class="audio-active flex items-end gap-0.5 h-3 px-0.5">
+            <span class="eq-bar eq-bar-1 h-1.5"></span>
+            <span class="eq-bar eq-bar-2 h-2.5"></span>
+            <span class="eq-bar eq-bar-3 h-1"></span>
+          </div>
+        </button>
+        <input id="slider-master-volume" type="range" min="0" max="100" step="1" value="65" class="volume-slider hidden sm:block" aria-label="Master Audio Volume" />
+        <span id="val-master-volume" class="text-[10px] font-mono text-slate-400 hidden md:inline w-7 text-right">65%</span>
+      </div>
+
+      <!-- Global Plasma Brightness Dimmer Slider (10% - 100%, Default 45%) -->
+      <div class="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-slate-900/90 border border-slate-700/90" title="Global Plasma &amp; Glow Brightness Dimmer (10% – 100%, Default 45% Eye-Comfort)">
+        <i id="icon-brightness-state" class="fa-solid fa-eye text-cyan-400 text-xs"></i>
+        <input id="slider-plasma-brightness" type="range" min="10" max="100" step="1" value="45" class="volume-slider hidden sm:block" aria-label="Plasma Brightness Dimmer" />
+        <span id="val-plasma-brightness" class="text-[10px] font-mono text-slate-400 hidden md:inline w-7 text-right">45%</span>
+      </div>
+
+      <button id="btn-toggle-bloom" class="nav-toggle-btn px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-900/90 border border-slate-700 text-slate-300 hover:border-cyan-400/50 flex items-center gap-1.5" title="Toggle Subtle Post-Processing Bloom (Off by default for anti-dazzle eye comfort)">
+        <i class="fa-solid fa-wand-magic-sparkles text-violet-400"></i>
+        <span class="hidden lg:inline">Bloom</span>
+      </button>
+
+      <button id="btn-toggle-cutaway" class="nav-toggle-btn px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-900/90 border border-slate-700 text-slate-300 hover:border-cyan-400/50 flex items-center gap-1.5" title="Slice 90° of the Boron Nitride ceramic channel and outer housing to inspect internal plasma">
+        <i class="fa-solid fa-cheese text-cyan-400"></i>
+        <span class="hidden lg:inline">Cutaway</span>
+      </button>
+      <button id="btn-toggle-fields" class="nav-toggle-btn active px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-900/90 border border-slate-700 text-slate-300 hover:border-cyan-400/50 flex items-center gap-1.5" title="Toggle 3D Axial Electric Field (Ez) and Radial Magnetic Field (Br) vectors">
+        <i class="fa-solid fa-magnet text-emerald-400"></i>
+        <span class="hidden lg:inline">Fields</span>
+      </button>
+      <button id="btn-reset-camera" class="nav-toggle-btn px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-900/90 border border-slate-700 text-slate-300 hover:border-cyan-400/50 hover:text-white flex items-center gap-1.5" title="Reset 3D camera orbit">
+        <i class="fa-solid fa-video text-slate-400"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- ====================================================================
+       LEFT FLOATING CONTEXTUAL PANEL (SWITCHES BY ACTIVE MODE)
+       ==================================================================== -->
+  <aside class="fixed top-20 left-3 bottom-14 z-20 w-[370px] max-w-[calc(100vw-24px)] flex flex-col rounded-xl glass-panel overflow-hidden">
+
+    <!-- ==================================================================
+         MODE 1: BUILD YOUR THRUSTER (INTERACTIVE ASSEMBLY & SANDBOX)
+         ================================================================== -->
+    <div id="panel-build" class="hidden flex-col h-full overflow-y-auto custom-scroll p-4 space-y-4">
+      <!-- Header -->
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div>
+          <span class="text-[10px] font-mono uppercase tracking-widest text-cyan-400">Mode A // Mechanical Sandbox</span>
+          <h2 class="text-base font-bold text-white flex items-center gap-2">
+            <span>Thruster Assembly Checklist</span>
+          </h2>
+        </div>
+        <span id="build-progress-badge" class="px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-400/40">
+          0 / 6 Installed
+        </span>
+      </div>
+
+      <!-- Progress Bar & Quick Assembly Actions -->
+      <div class="space-y-2">
+        <div class="w-full h-2 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+          <div id="build-progress-bar" class="h-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-300" style="width: 0%"></div>
+        </div>
+        <div class="flex items-center justify-between gap-2 pt-1">
+          <button id="btn-explode-all" class="flex-1 py-1.5 px-2.5 rounded-lg text-xs font-medium bg-slate-900/90 hover:bg-slate-800 text-slate-300 border border-slate-700 transition flex items-center justify-center gap-1.5">
+            <i class="fa-solid fa-up-right-and-down-left-from-center text-amber-400"></i>
+            <span>Explode Parts</span>
+          </button>
+          <button id="btn-assemble-all" class="flex-1 py-1.5 px-2.5 rounded-lg text-xs font-medium bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/40 transition flex items-center justify-center gap-1.5">
+            <i class="fa-solid fa-check-double text-cyan-400"></i>
+            <span>Install All (6)</span>
+          </button>
+        </div>
+      </div>
+
+      <p class="text-xs text-slate-400 leading-relaxed">
+        Install each subsystem into the thruster core or click floating 3D parts directly. Try clicking <strong class="text-slate-200">Ignite Thruster</strong> with missing components to test real-world engineering failure modes!
+      </p>
+
+      <!-- Component Checklist Container (Populated/Updated by JS) -->
+      <div id="build-parts-list" class="space-y-2"></div>
+
+      <!-- Ignite Thruster Test Button & Validation Banner -->
+      <div class="pt-1 space-y-2">
+        <button id="btn-ignite-thruster" class="w-full py-2.5 px-4 rounded-xl font-bold text-xs uppercase tracking-wider bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 shadow-lg shadow-cyan-500/25 transition flex items-center justify-center gap-2">
+          <i class="fa-solid fa-bolt"></i>
+          <span>Ignite Thruster &amp; Validate Systems</span>
+        </button>
+
+        <!-- Dynamic Validation / Failure Diagnostic Box -->
+        <div id="build-validation-box" class="hidden p-3 rounded-lg border text-xs leading-relaxed"></div>
+      </div>
+
+      <!-- Selected / Hovered Component Engineering Specification Card -->
+      <div id="inspector-card" class="mt-auto p-3.5 rounded-xl bg-slate-950/85 border border-cyan-500/30 space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="text-[10px] font-mono uppercase tracking-widest text-cyan-400 flex items-center gap-1.5">
+            <i class="fa-solid fa-microscope"></i> Component Engineering Specs
+          </span>
+          <span id="inspector-status" class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+            INSTALLED
+          </span>
+        </div>
+        <h3 id="inspector-name" class="text-sm font-bold text-white">Coaxial Discharge Channel (BN)</h3>
+        <div class="grid grid-cols-2 gap-2 text-[11px] pt-1">
+          <div class="p-2 rounded bg-slate-900/90 border border-slate-800">
+            <div class="text-slate-400 text-[10px] uppercase">Material</div>
+            <div id="inspector-material" class="font-medium text-cyan-300 mt-0.5">Boron Nitride (HP-BN)</div>
+          </div>
+          <div class="p-2 rounded bg-slate-900/90 border border-slate-800">
+            <div class="text-slate-400 text-[10px] uppercase">Operating Temp</div>
+            <div id="inspector-temp" class="font-mono font-medium text-amber-300 mt-0.5">700 K – 1,150 K</div>
+          </div>
+        </div>
+        <p id="inspector-desc" class="text-xs text-slate-300 leading-relaxed pt-1">
+          Electrically insulates the high-voltage anode discharge from the magnetic circuit and withstands intense plasma thermal load and ion sputtering.
+        </p>
+      </div>
+    </div>
+
+    <!-- ==================================================================
+         MODE 2: HOW IT WORKS (GUIDED 4-STAGE PHYSICS WALKTHROUGH)
+         ================================================================== -->
+    <div id="panel-learn" class="hidden flex-col h-full overflow-y-auto custom-scroll p-4 space-y-4">
+      <!-- Header -->
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div>
+          <span class="text-[10px] font-mono uppercase tracking-widest text-cyan-400">Mode B // Guided Physics Walkthrough</span>
+          <h2 class="text-base font-bold text-white">Hall-Effect Propulsion Stages</h2>
+        </div>
+        <button id="btn-auto-tour" class="px-2.5 py-1 rounded-lg text-[11px] font-mono bg-slate-900 hover:bg-slate-800 text-cyan-300 border border-cyan-500/40 flex items-center gap-1.5 transition">
+          <i id="icon-auto-tour" class="fa-solid fa-play text-[10px]"></i>
+          <span id="label-auto-tour">Auto-Tour</span>
+        </button>
+      </div>
+
+      <!-- 4-Stage Scrubber Pills -->
+      <div class="grid grid-cols-4 gap-1.5 bg-slate-950/75 p-1.5 rounded-xl border border-slate-800">
+        <button data-stage="1" class="stage-pill py-2 rounded-lg text-xs font-mono font-bold transition bg-cyan-500/25 text-cyan-300 border border-cyan-400/50">
+          Stage 1
+        </button>
+        <button data-stage="2" class="stage-pill py-2 rounded-lg text-xs font-mono font-bold transition text-slate-400 hover:text-white border border-transparent">
+          Stage 2
+        </button>
+        <button data-stage="3" class="stage-pill py-2 rounded-lg text-xs font-mono font-bold transition text-slate-400 hover:text-white border border-transparent">
+          Stage 3
+        </button>
+        <button data-stage="4" class="stage-pill py-2 rounded-lg text-xs font-mono font-bold transition text-slate-400 hover:text-white border border-transparent">
+          Stage 4
+        </button>
+      </div>
+
+      <!-- Active Stage Content Card -->
+      <div class="p-4 rounded-xl bg-slate-900/75 border border-slate-800 space-y-3">
+        <div class="flex items-center justify-between">
+          <span id="learn-stage-tag" class="px-2 py-0.5 rounded text-[10px] font-mono uppercase tracking-wider bg-cyan-500/20 text-cyan-300 border border-cyan-400/30">
+            STAGE 1 OF 4 // POTENTIAL ESTABLISHMENT
+          </span>
+          <span id="learn-camera-hint" class="text-[10px] font-mono text-slate-400">
+            <i class="fa-solid fa-camera text-cyan-400 mr-1"></i>Cathode &amp; Anode Focus
+          </span>
+        </div>
+
+        <h3 id="learn-stage-title" class="text-base font-bold text-white leading-snug">
+          Cathode Ignition &amp; Axial Electric Field (E<sub>z</sub>)
+        </h3>
+
+        <p id="learn-stage-body" class="text-xs text-slate-300 leading-relaxed">
+          A high DC discharge voltage (V<sub>d</sub> = +300 V) is applied between the perforated copper Anode at the base of the ceramic channel and the External Hollow Cathode. This establishes a strong axial electric field (E<sub>z</sub>, red arrows) pointing out of the nozzle, pulling primary thermionic electrons into the channel.
+        </p>
+
+        <!-- Physics Formula Callout -->
+        <div class="formula-card p-3 rounded-lg space-y-1">
+          <div class="text-[10px] uppercase tracking-wider text-cyan-400 font-sans font-semibold">
+            Governing Stage Equation
+          </div>
+          <div id="learn-stage-equation" class="text-xs text-white font-mono">
+            E<sub>z</sub> = -∇V<sub>d</sub> ≈ V<sub>d</sub> / L<sub>channel</sub> &nbsp;(Anode +300V → Cathode 0V)
+          </div>
+          <div id="learn-stage-subequation" class="text-[11px] text-slate-400 font-sans">
+            Primary electrons accelerate upstream toward the positively biased anode ring.
+          </div>
+        </div>
+
+        <!-- Stage Key Visual Highlights -->
+        <div class="space-y-1.5 pt-1">
+          <div class="text-[10px] font-mono uppercase tracking-wider text-slate-400">Active 3D Phenomena in Viewport:</div>
+          <div id="learn-stage-highlights" class="space-y-1.5 text-xs"></div>
+        </div>
+      </div>
+
+      <!-- Prev / Next Stage Navigation Buttons -->
+      <div class="flex items-center gap-2 mt-auto pt-2">
+        <button id="btn-stage-prev" class="flex-1 py-2.5 px-3 rounded-xl text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 transition flex items-center justify-center gap-2">
+          <i class="fa-solid fa-arrow-left text-cyan-400"></i>
+          <span>Previous Stage</span>
+        </button>
+        <button id="btn-stage-next" class="flex-1 py-2.5 px-3 rounded-xl text-xs font-semibold bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 shadow-lg shadow-cyan-500/20 transition flex items-center justify-center gap-2">
+          <span>Next Stage</span>
+          <i class="fa-solid fa-arrow-right"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- ==================================================================
+         MODE 3: LIVE PHYSICS LAB (REAL-TIME SIMULATION & CONTROLS)
+         ================================================================== -->
+    <div id="panel-sim" class="flex flex-col h-full overflow-y-auto custom-scroll p-4 space-y-4">
+      <!-- Header -->
+      <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+        <div>
+          <span class="text-[10px] font-mono uppercase tracking-widest text-cyan-400">Mode C // Real-Time Solver</span>
+          <h2 class="text-base font-bold text-white">Propulsion Control Deck</h2>
+        </div>
+        <span id="sim-active-gas-badge" class="px-2 py-0.5 rounded text-xs font-mono font-semibold bg-blue-500/20 text-blue-300 border border-blue-400/40">
+          Xe // 131.29 u
+        </span>
+      </div>
+
+      <!-- 1. Propellant Selector -->
+      <div class="space-y-2">
+        <div class="flex items-center justify-between">
+          <label class="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+            <i class="fa-solid fa-flask text-cyan-400"></i>
+            <span>1. Propellant Gas</span>
+          </label>
+          <span id="propellant-ion-energy" class="text-[11px] font-mono text-cyan-300">
+            E<sub>ion</sub> = 12.13 eV
+          </span>
+        </div>
+
+        <div class="grid grid-cols-3 gap-2">
+          <!-- Xenon -->
+          <button data-propellant="Xe" class="propellant-card active-xe p-2.5 rounded-xl border border-slate-700 bg-slate-900/70 text-left flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+              <span class="text-sm font-bold text-white font-mono">Xe</span>
+              <span class="w-3 h-3 rounded-full bg-blue-500 shadow-[0_0_10px_#3b82f6]"></span>
+            </div>
+            <div class="mt-1.5">
+              <div class="text-xs font-semibold text-slate-200">Xenon</div>
+              <div class="text-[10px] font-mono text-slate-400">131.29 u · 12.1 eV</div>
+            </div>
+          </button>
+
+          <!-- Krypton -->
+          <button data-propellant="Kr" class="propellant-card p-2.5 rounded-xl border border-slate-700 bg-slate-900/70 text-left flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+              <span class="text-sm font-bold text-white font-mono">Kr</span>
+              <span class="w-3 h-3 rounded-full bg-cyan-500 shadow-[0_0_8px_#06b6d4]"></span>
+            </div>
+            <div class="mt-1.5">
+              <div class="text-xs font-semibold text-slate-200">Krypton</div>
+              <div class="text-[10px] font-mono text-slate-400">83.80 u · 14.0 eV</div>
+            </div>
+          </button>
+
+          <!-- Argon -->
+          <button data-propellant="Ar" class="propellant-card p-2.5 rounded-xl border border-slate-700 bg-slate-900/70 text-left flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+              <span class="text-sm font-bold text-white font-mono">Ar</span>
+              <span class="w-3 h-3 rounded-full bg-purple-500 shadow-[0_0_8px_#a855f7]"></span>
+            </div>
+            <div class="mt-1.5">
+              <div class="text-xs font-semibold text-slate-200">Argon</div>
+              <div class="text-[10px] font-mono text-slate-400">39.95 u · 15.8 eV</div>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <!-- 2. Discharge Voltage (Vd) Slider -->
+      <div class="p-3 rounded-xl bg-slate-900/75 border border-slate-800 space-y-2">
+        <div class="flex items-center justify-between">
+          <label for="slider-voltage" class="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+            <i class="fa-solid fa-bolt text-amber-400"></i>
+            <span>Discharge Voltage (V<sub>d</sub>)</span>
+          </label>
+          <span id="val-voltage" class="text-sm font-mono font-bold text-cyan-300">300 V</span>
+        </div>
+        <input id="slider-voltage" type="range" min="100" max="800" step="5" value="300" class="plasma-slider" />
+        <div class="flex justify-between text-[10px] font-mono text-slate-400">
+          <span>100 V (Low V<sub>e</sub>)</span>
+          <span>300 V (Nominal)</span>
+          <span>800 V (High I<sub>sp</sub>)</span>
+        </div>
+      </div>
+
+      <!-- 3. Propellant Mass Flow Rate (m_dot) Slider -->
+      <div class="p-3 rounded-xl bg-slate-900/75 border border-slate-800 space-y-2">
+        <div class="flex items-center justify-between">
+          <label for="slider-massflow" class="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+            <i class="fa-solid fa-wind text-sky-400"></i>
+            <span>Mass Flow Rate (ṁ)</span>
+          </label>
+          <span id="val-massflow" class="text-sm font-mono font-bold text-cyan-300">5.0 mg/s</span>
+        </div>
+        <input id="slider-massflow" type="range" min="1.0" max="20.0" step="0.1" value="5.0" class="plasma-slider" />
+        <div class="flex justify-between text-[10px] font-mono text-slate-400">
+          <span>1.0 mg/s</span>
+          <span>5.0 mg/s (SPT-100)</span>
+          <span>20.0 mg/s (High Thrust)</span>
+        </div>
+      </div>
+
+      <!-- 4. Radial Magnetic Field Strength (Br) Slider -->
+      <div class="p-3 rounded-xl bg-slate-900/75 border border-slate-800 space-y-2">
+        <div class="flex items-center justify-between">
+          <label for="slider-magfield" class="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+            <i class="fa-solid fa-magnet text-emerald-400"></i>
+            <span>Radial Magnetic Field (B<sub>r</sub>)</span>
+          </label>
+          <span id="val-magfield" class="text-sm font-mono font-bold text-emerald-300">180 G</span>
+        </div>
+        <input id="slider-magfield" type="range" min="50" max="350" step="1" value="180" class="plasma-slider" />
+        <div class="flex justify-between items-center text-[10px] font-mono text-slate-400">
+          <span>50 G (Unconfined)</span>
+          <span id="optimal-b-hint" class="text-emerald-400">Optimal B<sub>opt</sub> ≈ 180 G</span>
+          <span>350 G</span>
+        </div>
+      </div>
+
+      <!-- Quick Flight Regime Presets -->
+      <div class="space-y-1.5">
+        <div class="text-[10px] font-mono uppercase tracking-wider text-slate-400">
+          Spacecraft Telemetry Presets:
+        </div>
+        <div class="grid grid-cols-2 gap-1.5">
+          <button data-preset="spt100" class="preset-btn py-1.5 px-2.5 rounded-lg text-[11px] font-medium bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700/80 text-left transition flex items-center justify-between">
+            <span>SPT-100 Nominal</span>
+            <span class="font-mono text-[10px] text-blue-400">Xe 300V</span>
+          </button>
+          <button data-preset="starlink" class="preset-btn py-1.5 px-2.5 rounded-lg text-[11px] font-medium bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700/80 text-left transition flex items-center justify-between">
+            <span>Starlink Hall</span>
+            <span class="font-mono text-[10px] text-cyan-400">Kr 450V</span>
+          </button>
+          <button data-preset="deepspace" class="preset-btn py-1.5 px-2.5 rounded-lg text-[11px] font-medium bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700/80 text-left transition flex items-center justify-between">
+            <span>Deep Space High-I<sub>sp</sub></span>
+            <span class="font-mono text-[10px] text-indigo-400">Xe 750V</span>
+          </button>
+          <button data-preset="sputter" class="preset-btn py-1.5 px-2.5 rounded-lg text-[11px] font-medium bg-amber-950/40 hover:bg-amber-900/50 text-amber-200 border border-amber-500/40 text-left transition flex items-center justify-between">
+            <span>Wall Erosion Fault</span>
+            <span class="font-mono text-[10px] text-amber-400">Ar 650V/65G</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Governing Equations Summary Card -->
+      <div class="formula-card p-3 rounded-lg space-y-1 text-[11px] mt-auto">
+        <div class="text-[10px] uppercase tracking-wider text-cyan-400 font-sans font-semibold">
+          Real-Time Solver Equations
+        </div>
+        <div class="font-mono text-slate-200">
+          v<sub>e</sub> = √(2·e·V<sub>d</sub>·η<sub>v</sub> / m<sub>i</sub>) &nbsp;|&nbsp; I<sub>sp</sub> = (v<sub>e</sub> / g<sub>0</sub>)·η<sub>mag</sub>
+        </div>
+        <div class="font-mono text-slate-300">
+          T = ṁ · v<sub>e</sub> · η<sub>mag</sub> &nbsp;|&nbsp; P = (T · v<sub>e</sub>) / (2 · η<sub>total</sub>)
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================================================================
+         MODE 4: ORBITAL MANEUVER & DELTA-V MISSION SIMULATOR (NEW)
+         ================================================================== -->
+    <div id="panel-orbit" class="hidden flex-col h-full overflow-y-auto custom-scroll p-4 space-y-3.5">
+      <!-- Header -->
+      <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+        <div>
+          <span class="text-[10px] font-mono uppercase tracking-widest text-emerald-400">Mode D // Astrodynamics &amp; Tsiolkovsky</span>
+          <h2 class="text-base font-bold text-white">Orbital Spiral &amp; Δv Simulator</h2>
+        </div>
+        <!-- Quick Propellant Switcher Pill in Mode D -->
+        <div class="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800">
+          <button data-orbit-prop="Xe" class="orbit-prop-btn px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-500/25 text-blue-300 border border-blue-400/40">Xe</button>
+          <button data-orbit-prop="Kr" class="orbit-prop-btn px-2 py-0.5 rounded text-[10px] font-mono font-bold text-slate-400 hover:text-white border border-transparent">Kr</button>
+          <button data-orbit-prop="Ar" class="orbit-prop-btn px-2 py-0.5 rounded text-[10px] font-mono font-bold text-slate-400 hover:text-white border border-transparent">Ar</button>
+        </div>
+      </div>
+
+      <!-- 1. Mission Profile Presets -->
+      <div class="space-y-1.5">
+        <div class="text-[10px] font-mono uppercase tracking-wider text-slate-400 flex items-center justify-between">
+          <span>1. Mission Profile Presets</span>
+          <span id="orbit-active-preset-label" class="text-cyan-400">Starlink LEO Raise</span>
+        </div>
+        <div class="grid grid-cols-2 gap-1.5">
+          <button data-mission="starlink_leo" class="mission-preset-btn active p-2 rounded-lg text-left bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 transition">
+            <div class="text-[11px] font-bold text-white flex items-center justify-between">
+              <span>Starlink LEO Raise</span>
+              <span class="text-[9px] font-mono text-cyan-400">N=1</span>
+            </div>
+            <div class="text-[10px] font-mono text-slate-400 mt-0.5">350 → 550 km · 260 kg</div>
+          </button>
+
+          <button data-mission="leo_geo" class="mission-preset-btn p-2 rounded-lg text-left bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 transition">
+            <div class="text-[11px] font-bold text-white flex items-center justify-between">
+              <span>LEO → GEO Spiral</span>
+              <span class="text-[9px] font-mono text-emerald-400">N=4</span>
+            </div>
+            <div class="text-[10px] font-mono text-slate-400 mt-0.5">400 → 35,786 km</div>
+          </button>
+
+          <button data-mission="lunar_gateway" class="mission-preset-btn p-2 rounded-lg text-left bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 transition">
+            <div class="text-[11px] font-bold text-white flex items-center justify-between">
+              <span>Lunar Gateway Cargo</span>
+              <span class="text-[9px] font-mono text-violet-400">N=6</span>
+            </div>
+            <div class="text-[10px] font-mono text-slate-400 mt-0.5">Δv = 3,850 m/s · 2.5t</div>
+          </button>
+
+          <button data-mission="psyche_asteroid" class="mission-preset-btn p-2 rounded-lg text-left bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 transition">
+            <div class="text-[11px] font-bold text-white flex items-center justify-between">
+              <span>Psyche Rendezvous</span>
+              <span class="text-[9px] font-mono text-amber-400">N=4</span>
+            </div>
+            <div class="text-[10px] font-mono text-slate-400 mt-0.5">Δv = 4,500 m/s · 1.6t</div>
+          </button>
+        </div>
+      </div>
+
+      <!-- 2. Interactive Spacecraft & Orbit Sliders -->
+      <div class="p-3 rounded-xl bg-slate-900/75 border border-slate-800 space-y-2.5">
+        <!-- Dry Mass -->
+        <div class="space-y-1">
+          <div class="flex justify-between text-xs">
+            <span class="text-slate-300 font-medium">Spacecraft Dry Mass (m<sub>dry</sub>)</span>
+            <span id="val-orbit-drymass" class="font-mono font-bold text-cyan-300">260 kg</span>
+          </div>
+          <input id="slider-orbit-drymass" type="range" min="100" max="5000" step="20" value="260" class="plasma-slider" />
+        </div>
+
+        <!-- Propellant Mass -->
+        <div class="space-y-1">
+          <div class="flex justify-between text-xs">
+            <span class="text-slate-300 font-medium">Propellant Load (m<sub>prop</sub>)</span>
+            <span id="val-orbit-propmass" class="font-mono font-bold text-emerald-300">20 kg</span>
+          </div>
+          <input id="slider-orbit-propmass" type="range" min="5" max="1200" step="5" value="20" class="plasma-slider" />
+        </div>
+
+        <!-- Initial Altitude h1 -->
+        <div class="space-y-1">
+          <div class="flex justify-between text-xs">
+            <span class="text-slate-300 font-medium">Initial Orbit Altitude (h<sub>1</sub>)</span>
+            <span id="val-orbit-h1" class="font-mono font-bold text-sky-300">350 km</span>
+          </div>
+          <input id="slider-orbit-h1" type="range" min="200" max="2000" step="10" value="350" class="plasma-slider" />
+        </div>
+
+        <!-- Target Altitude h2 -->
+        <div class="space-y-1">
+          <div class="flex justify-between text-xs">
+            <span class="text-slate-300 font-medium">Target Orbit Altitude (h<sub>2</sub>)</span>
+            <span id="val-orbit-h2" class="font-mono font-bold text-indigo-300">550 km</span>
+          </div>
+          <input id="slider-orbit-h2" type="range" min="300" max="36000" step="50" value="550" class="plasma-slider" />
+        </div>
+
+        <!-- Thruster Cluster Count N -->
+        <div class="space-y-1">
+          <div class="flex justify-between text-xs">
+            <span class="text-slate-300 font-medium">Thruster Cluster (N<sub>thrusters</sub>)</span>
+            <span id="val-orbit-cluster" class="font-mono font-bold text-amber-300">1 Unit</span>
+          </div>
+          <input id="slider-orbit-cluster" type="range" min="1" max="8" step="1" value="1" class="plasma-slider" />
+        </div>
+      </div>
+
+      <!-- 3. Time-Warp Burn Controls & Live Tank Depletion Gauge -->
+      <div class="p-3 rounded-xl bg-slate-950/85 border border-cyan-500/30 space-y-2.5">
+        <div class="flex items-center justify-between gap-2">
+          <button id="btn-orbit-burn-toggle" class="flex-1 py-2 px-3 rounded-lg font-bold text-xs uppercase tracking-wider bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 shadow-lg shadow-cyan-500/20 transition flex items-center justify-center gap-1.5">
+            <i id="icon-orbit-burn" class="fa-solid fa-play"></i>
+            <span id="label-orbit-burn">Start Time-Warp Burn</span>
+          </button>
+          <button id="btn-orbit-reset" class="py-2 px-2.5 rounded-lg text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 transition" title="Reset Orbit &amp; Refill Propellant Tank">
+            <i class="fa-solid fa-rotate-left"></i>
+          </button>
+        </div>
+
+        <!-- Warp Speed Selector -->
+        <div class="flex items-center justify-between gap-1.5 text-[10px] font-mono">
+          <span class="text-slate-400">TIME WARP:</span>
+          <div class="flex items-center gap-1">
+            <button data-warp="100" class="warp-speed-btn px-2 py-0.5 rounded bg-slate-900 text-slate-400 border border-slate-800">100x</button>
+            <button data-warp="1000" class="warp-speed-btn active px-2 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-800">1,000x</button>
+            <button data-warp="10000" class="warp-speed-btn px-2 py-0.5 rounded bg-slate-900 text-slate-400 border border-slate-800">10,000x</button>
+          </div>
+        </div>
+
+        <!-- Live Propellant Tank Level Bar -->
+        <div class="space-y-1">
+          <div class="flex justify-between text-[11px] font-mono">
+            <span class="text-slate-300"><i class="fa-solid fa-gas-pump text-cyan-400 mr-1"></i>Tank Remaining:</span>
+            <span id="orbit-fuel-readout" class="text-emerald-300 font-bold">20.0 kg (100%)</span>
+          </div>
+          <div class="w-full h-2.5 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+            <div id="orbit-fuel-bar" class="h-full bg-gradient-to-r from-emerald-500 to-cyan-400 transition-all duration-150" style="width: 100%"></div>
+          </div>
+          <div class="flex justify-between text-[10px] font-mono text-slate-400">
+            <span id="orbit-current-alt">Current Alt: 350 km</span>
+            <span id="orbit-elapsed-time">Elapsed: 0.0 hrs</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. Mission Feasibility Diagnostic Banner & Astrodynamics Readout Grid -->
+      <div id="orbit-feasibility-banner" class="p-2.5 rounded-lg bg-emerald-950/60 border border-emerald-500/50 text-xs text-emerald-200 leading-relaxed">
+        <div class="font-bold text-emerald-300 flex items-center gap-1.5">
+          <i class="fa-solid fa-circle-check"></i> MISSION FEASIBLE — TARGET ORBIT ACHIEVED
+        </div>
+        <div id="orbit-feasibility-sub" class="text-[11px] mt-0.5">
+          Available Δv exceeds mission requirement with +14.2 kg propellant reserve.
+        </div>
+      </div>
+
+      <!-- Astrodynamics Telemetry Mini-Grid -->
+      <div class="grid grid-cols-2 gap-2 text-[11px]">
+        <div class="p-2 rounded-lg bg-slate-900/90 border border-slate-800">
+          <div class="text-[10px] text-slate-400 uppercase">Required Δv<sub>req</sub></div>
+          <div id="orbit-kpi-dvreq" class="text-sm font-mono font-bold text-white mt-0.5">114 m/s</div>
+          <div class="text-[10px] font-mono text-slate-400">Spiral Transfer</div>
+        </div>
+        <div class="p-2 rounded-lg bg-slate-900/90 border border-slate-800">
+          <div class="text-[10px] text-slate-400 uppercase">Max Available Δv<sub>max</sub></div>
+          <div id="orbit-kpi-dvmax" class="text-sm font-mono font-bold text-cyan-300 mt-0.5">1,295 m/s</div>
+          <div id="orbit-kpi-propneed" class="text-[10px] font-mono text-slate-400">Need: 1.8 kg</div>
+        </div>
+        <div class="p-2 rounded-lg bg-slate-900/90 border border-slate-800">
+          <div class="text-[10px] text-slate-400 uppercase">Total Burn Time</div>
+          <div id="orbit-kpi-burntime" class="text-sm font-mono font-bold text-amber-300 mt-0.5">101.4 hrs</div>
+          <div id="orbit-kpi-burndays" class="text-[10px] font-mono text-slate-400">4.2 Days Continuous</div>
+        </div>
+        <div class="p-2 rounded-lg bg-slate-900/90 border border-slate-800">
+          <div class="text-[10px] text-slate-400 uppercase">Initial Accel (a<sub>0</sub>)</div>
+          <div id="orbit-kpi-accel" class="text-sm font-mono font-bold text-violet-300 mt-0.5">0.31 mm/s²</div>
+          <div id="orbit-kpi-totalthrust" class="text-[10px] font-mono text-slate-400">Cluster T = 87.5 mN</div>
+        </div>
+      </div>
+
+      <!-- Governing Astrodynamics & Tsiolkovsky Equations Card -->
+      <div class="formula-card p-2.5 rounded-lg space-y-1 text-[10px] mt-auto">
+        <div class="text-[10px] uppercase tracking-wider text-emerald-400 font-sans font-semibold">
+          Edelbaum &amp; Tsiolkovsky Equations
+        </div>
+        <div class="font-mono text-slate-200">
+          Δv<sub>req</sub> = |√(μ<sub>⊕</sub>/r<sub>1</sub>) - √(μ<sub>⊕</sub>/r<sub>2</sub>)| &nbsp;|&nbsp; Δv<sub>max</sub> = v<sub>e</sub>·η<sub>mag</sub>·ln(m<sub>0</sub>/m<sub>dry</sub>)
+        </div>
+        <div class="font-mono text-slate-300">
+          m<sub>prop,req</sub> = m<sub>0</sub>·(1 - e<sup>-Δv<sub>req</sub>/(v<sub>e</sub>·η<sub>mag</sub>)</sup>) &nbsp;|&nbsp; t<sub>burn</sub> = m<sub>prop,req</sub>/(N·ṁ)
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================================================================
+         MODE 5: PILOT & GIMBAL GAME (REAL-TIME 3D FLIGHT & VECTORING SIM)
+         ================================================================== -->
+    <div id="panel-game" class="hidden flex-col h-full overflow-y-auto custom-scroll p-4 space-y-3">
+      <!-- Header & Camera View Switcher -->
+      <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+        <div>
+          <span class="text-[10px] font-mono uppercase tracking-widest text-amber-400">Mode E // 3D Plasma Rocket Flight</span>
+          <h2 class="text-base font-bold text-white flex items-center gap-1.5">
+            <span>Rocket Flight &amp; Gimbal Deck</span>
+          </h2>
+        </div>
+        <button id="btn-game-cam-cycle" class="px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-400/50 flex items-center gap-1.5 transition" title="Toggle Flight Camera View (Key: C)">
+          <i class="fa-solid fa-video text-cyan-400"></i>
+          <span id="game-cam-badge">CHASE [C]</span>
+        </button>
+      </div>
+
+      <!-- Camera View 3-Way Pill Selector -->
+      <div class="grid grid-cols-3 gap-1 bg-slate-950/85 p-1 rounded-lg border border-slate-800">
+        <button data-game-cam="chase" class="game-cam-btn active py-1 px-1.5 rounded text-[10px] font-mono font-semibold text-center transition">
+          1. Chase Cam
+        </button>
+        <button data-game-cam="nozzle" class="game-cam-btn py-1 px-1.5 rounded text-[10px] font-mono font-semibold text-center text-slate-400 hover:text-white transition">
+          2. Tail Gimbal
+        </button>
+        <button data-game-cam="cockpit" class="game-cam-btn py-1 px-1.5 rounded text-[10px] font-mono font-semibold text-center text-slate-400 hover:text-white transition">
+          3. Cockpit HUD
+        </button>
+      </div>
+
+      <!-- 1. Three Playable Game Scenarios -->
+      <div class="space-y-1.5">
+        <div class="flex items-center justify-between text-[10px] font-mono uppercase tracking-wider text-slate-400">
+          <span>Select Flight Challenge</span>
+          <span id="game-active-mission-tag" class="text-amber-400">Mission 1 Active</span>
+        </div>
+
+        <div class="space-y-1.5">
+          <!-- Mission 1: Orbital Gate Slalom Race -->
+          <button data-game-mission="slalom" class="game-mission-btn active w-full p-2.5 rounded-xl text-left bg-slate-900/90 hover:bg-slate-800/90 border border-slate-700/80 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-white flex items-center gap-1.5">
+                <i class="fa-solid fa-ring text-cyan-400"></i>
+                <span>1. Orbital Gate Slalom Race</span>
+              </span>
+              <span id="mission-best-slalom" class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-cyan-300 border border-cyan-500/30">RANK --</span>
+            </div>
+            <p class="text-[10px] text-slate-400 mt-1 leading-snug">
+              Fly the 3D plasma rocket through <strong>12 holographic corridor gates</strong> using <span class="text-cyan-300 font-mono">WASD</span> pitch/yaw vectoring while keeping Hall efficiency η<sub>mag</sub> &gt; 80%.
+            </p>
+          </button>
+
+          <!-- Mission 2: Asteroid & Satellite Debris Dodge -->
+          <button data-game-mission="debris" class="game-mission-btn w-full p-2.5 rounded-xl text-left bg-slate-900/90 hover:bg-slate-800/90 border border-slate-700/80 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-white flex items-center gap-1.5">
+                <i class="fa-solid fa-meteor text-amber-400"></i>
+                <span>2. Asteroid &amp; Debris Field Dodge</span>
+              </span>
+              <span id="mission-best-debris" class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-amber-300 border border-amber-500/30">RANK --</span>
+            </div>
+            <p class="text-[10px] text-slate-400 mt-1 leading-snug">
+              Evade <strong>12 asteroid &amp; debris waves</strong> with <span class="text-blue-300 font-mono">Xe (1)</span> &amp; <span class="text-amber-300 font-mono">Pulse (SPACE)</span>, fly through <strong>Solar Recharge Rings</strong>, and trim B<sub>r</sub> (<span class="text-emerald-300 font-mono">Q/E</span>).
+            </p>
+          </button>
+
+          <!-- Mission 3: Orbital Station Rendezvous & Nose Docking -->
+          <button data-game-mission="docking" class="game-mission-btn w-full p-2.5 rounded-xl text-left bg-slate-900/90 hover:bg-slate-800/90 border border-slate-700/80 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-white flex items-center gap-1.5">
+                <i class="fa-solid fa-crosshairs text-emerald-400"></i>
+                <span>3. Orbital Station Nose Docking</span>
+              </span>
+              <span id="mission-best-docking" class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-emerald-300 border border-emerald-500/30">RANK --</span>
+            </div>
+            <p class="text-[10px] text-slate-400 mt-1 leading-snug">
+              Approach the rotating <strong>3D Orbital Space Station</strong> ahead, match its lateral drift with <span class="text-cyan-300 font-mono">WASD</span>, and align the rocket nose into the docking port for <strong>30s</strong>.
+            </p>
+          </button>
+        </div>
+      </div>
+
+      <!-- 2. Live Mission Scoreboard, Objective Progress & Rank Card -->
+      <div class="p-3 rounded-xl bg-slate-950/90 border border-cyan-500/30 space-y-2.5">
+        <div class="grid grid-cols-3 gap-2 text-center">
+          <div class="p-1.5 rounded-lg bg-slate-900/90 border border-slate-800">
+            <div class="text-[9px] font-mono uppercase text-slate-400">SCORE</div>
+            <div id="game-score-val" class="text-sm font-mono font-bold text-cyan-300">0</div>
+          </div>
+          <div class="p-1.5 rounded-lg bg-slate-900/90 border border-slate-800">
+            <div class="text-[9px] font-mono uppercase text-slate-400">MISSION TIME</div>
+            <div id="game-timer-val" class="text-sm font-mono font-bold text-white">00:00.0</div>
+          </div>
+          <div class="p-1.5 rounded-lg bg-slate-900/90 border border-slate-800">
+            <div class="text-[9px] font-mono uppercase text-slate-400">LIVE RANK</div>
+            <div id="game-rank-badge" class="text-sm font-mono font-extrabold text-amber-400">S</div>
+          </div>
+        </div>
+
+        <!-- Objective Progress Bar -->
+        <div class="space-y-1">
+          <div class="flex items-center justify-between text-[11px] font-mono">
+            <span id="game-objective-label" class="text-slate-300">Plasma Gates Cleared:</span>
+            <span id="game-objective-val" class="text-cyan-300 font-bold">0 / 12</span>
+          </div>
+          <div class="w-full h-2 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+            <div id="game-objective-bar" class="h-full bg-gradient-to-r from-cyan-500 to-emerald-400 transition-all duration-150" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <!-- Action Buttons: Restart, Auto-Mag Sync, Repair/Cooldown -->
+        <div class="flex items-center gap-1.5 pt-0.5">
+          <button id="btn-game-restart" class="flex-1 py-1.5 px-2.5 rounded-lg text-[11px] font-bold uppercase tracking-wider bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 shadow-md transition flex items-center justify-center gap-1.5">
+            <i class="fa-solid fa-rotate-right"></i>
+            <span>Restart Mission</span>
+          </button>
+          <button id="btn-game-automag" class="py-1.5 px-2.5 rounded-lg text-[11px] font-mono font-semibold bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 transition flex items-center gap-1" title="Toggle Auto-Mag Sync (Key: F) — Automatically matches Br to Vd at extra capacitor power cost">
+            <i class="fa-solid fa-wand-magic-sparkles text-emerald-400"></i>
+            <span id="label-game-automag">Auto-Mag [F]: OFF</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Dynamic Mission Telemetry / Debrief Banner -->
+      <div id="game-status-banner" class="p-2.5 rounded-lg bg-slate-900/90 border border-cyan-500/40 text-xs text-slate-200 leading-relaxed">
+        <div class="font-bold text-cyan-300 flex items-center justify-between">
+          <span><i class="fa-solid fa-shuttle-space mr-1"></i>PLASMA ROCKET AUTOPILOT / FBW</span>
+          <span id="game-storm-indicator" class="hidden text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-400/40 animate-pulse">SOLAR STORM</span>
+        </div>
+        <div id="game-status-sub" class="text-[11px] text-slate-300 mt-0.5">
+          Use <strong>WASD</strong> to pitch, yaw &amp; bank the 3D plasma rocket through the glowing holographic gates ahead.
+        </div>
+      </div>
+
+      <!-- 3. Flight Controls & Hotkeys Quick Reference -->
+      <div class="p-2.5 rounded-xl bg-slate-900/75 border border-slate-800 space-y-1.5 text-[11px] mt-auto">
+        <div class="text-[10px] font-mono uppercase tracking-wider text-cyan-400 font-semibold flex items-center justify-between">
+          <span>Rocket Flight Control Keybinds</span>
+          <button id="btn-game-repair" class="text-[10px] font-mono text-amber-300 hover:text-amber-200 underline">
+            Repair BN Channel [R]
+          </button>
+        </div>
+        <div class="grid grid-cols-2 gap-x-2 gap-y-1 font-mono text-[10px]">
+          <div class="flex justify-between"><span class="text-slate-400">Pitch / Steer:</span><span class="text-white font-semibold">W/S · A/D (Bank)</span></div>
+          <div class="flex justify-between"><span class="text-slate-400">Throttle:</span><span class="text-cyan-300 font-semibold">SHIFT / CTRL</span></div>
+          <div class="flex justify-between"><span class="text-slate-400">Mag Trim B<sub>r</sub>:</span><span class="text-emerald-300 font-semibold">Q / E · F (Auto)</span></div>
+          <div class="flex justify-between"><span class="text-slate-400">Propellant:</span><span class="text-violet-300 font-semibold">1:Xe 2:Kr 3:Ar</span></div>
+          <div class="flex justify-between"><span class="text-slate-400">Afterburner:</span><span class="text-amber-300 font-semibold">SPACE (Pulse)</span></div>
+          <div class="flex justify-between"><span class="text-slate-400">Camera View:</span><span class="text-sky-300 font-semibold">C (Chase/Tail/HUD)</span></div>
+        </div>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- ====================================================================
+       MODE 5: SPACECRAFT FLIGHT HUD OVERLAY (CENTER VIEWPORT)
+       ==================================================================== -->
+  <div id="game-hud-overlay" class="fixed inset-0 z-10 hidden pointer-events-none">
+
+    <!-- 1. TOP-CENTER ENGINEERING RESOURCE BARS (5 LIVE GAUGES) -->
+    <div class="fixed top-20 left-1/2 -translate-x-1/2 w-[660px] max-w-[calc(100vw-24px)] xl:max-w-[calc(100vw-790px)] px-3 py-2 rounded-xl glass-panel border border-cyan-500/30 pointer-events-auto">
+      <div class="grid grid-cols-2 sm:grid-cols-5 gap-2.5 text-[10px] font-mono">
+
+        <!-- Gauge 1: Throttle & Discharge Voltage (0% - 125% OVERDRIVE) -->
+        <div class="space-y-1">
+          <div class="flex items-center justify-between">
+            <span class="text-slate-400 uppercase">THROTTLE</span>
+            <span id="hud-throttle-val" class="font-bold text-cyan-300">65% (380V)</span>
+          </div>
+          <div class="w-full h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-800 relative">
+            <div class="absolute top-0 bottom-0 left-[80%] w-0.5 bg-amber-400/90 z-10" title="100% Nominal Max / Overdrive Threshold"></div>
+            <div id="hud-throttle-bar" class="h-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-75" style="width: 52%"></div>
+          </div>
+          <div class="flex items-center justify-between text-[9px]">
+            <span id="hud-prop-badge" class="px-1 rounded bg-blue-500/25 text-blue-300 border border-blue-400/40 font-bold">Xe</span>
+            <span id="hud-thrust-val" class="text-slate-200 font-semibold">T = 83.4 mN</span>
+          </div>
+        </div>
+
+        <!-- Gauge 2: Boron Nitride Channel Integrity (HP Bar 0% - 100%) -->
+        <div class="space-y-1">
+          <div class="flex items-center justify-between">
+            <span class="text-slate-400 uppercase">BN CHANNEL HP</span>
+            <span id="hud-integrity-val" class="font-bold text-emerald-300">100%</span>
+          </div>
+          <div class="w-full h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+            <div id="hud-integrity-bar" class="h-full bg-gradient-to-r from-emerald-500 to-cyan-400 transition-all duration-100" style="width: 100%"></div>
+          </div>
+          <div class="flex items-center justify-between text-[9px]">
+            <span id="hud-integrity-status" class="text-emerald-400">NOMINAL</span>
+            <span id="hud-sputter-rate" class="text-slate-400">Erosion: 0%</span>
+          </div>
+        </div>
+
+        <!-- Gauge 3: Capacitor Bank & Solar Power Bar (0% - 100%) -->
+        <div class="space-y-1">
+          <div class="flex items-center justify-between">
+            <span class="text-slate-400 uppercase">CAPACITOR</span>
+            <span id="hud-cap-val" class="font-bold text-amber-300">100%</span>
+          </div>
+          <div class="w-full h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+            <div id="hud-cap-bar" class="h-full bg-gradient-to-r from-amber-500 to-yellow-300 transition-all duration-100" style="width: 100%"></div>
+          </div>
+          <div class="flex items-center justify-between text-[9px]">
+            <span id="hud-pulse-status" class="text-cyan-300">PULSE READY</span>
+            <span id="hud-power-draw" class="text-slate-400">1.35 kW</span>
+          </div>
+        </div>
+
+        <!-- Gauge 4: Propellant Tank Gauge (kg) -->
+        <div class="space-y-1">
+          <div class="flex items-center justify-between">
+            <span class="text-slate-400 uppercase">PROP TANK</span>
+            <span id="hud-fuel-val" class="font-bold text-sky-300">12.00 kg</span>
+          </div>
+          <div class="w-full h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+            <div id="hud-fuel-bar" class="h-full bg-gradient-to-r from-sky-500 to-indigo-400 transition-all duration-100" style="width: 100%"></div>
+          </div>
+          <div class="flex items-center justify-between text-[9px]">
+            <span id="hud-mdot-val" class="text-slate-300">ṁ = 5.0 mg/s</span>
+            <span id="hud-ve-val" class="text-violet-300">19.9 km/s</span>
+          </div>
+        </div>
+
+        <!-- Gauge 5: Hall Confinement Sweet-Spot (Br & eta_mag) -->
+        <div class="space-y-1 col-span-2 sm:col-span-1">
+          <div class="flex items-center justify-between">
+            <span class="text-slate-400 uppercase">MAG LOCK η<sub>m</sub></span>
+            <span id="hud-etamag-val" class="font-bold text-emerald-300">94.2%</span>
+          </div>
+          <div class="w-full h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-800 relative">
+            <div class="absolute top-0 bottom-0 left-[80%] w-0.5 bg-emerald-400/90 z-10" title="80% Optimal Hall Lock Threshold"></div>
+            <div id="hud-etamag-bar" class="h-full bg-gradient-to-r from-emerald-500 to-cyan-400 transition-all duration-100" style="width: 94.2%"></div>
+          </div>
+          <div class="flex items-center justify-between text-[9px]">
+            <span id="hud-br-val" class="text-emerald-300">180G / Opt 180G</span>
+            <span id="hud-automag-badge" class="text-slate-500">MANUAL</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- 2. CENTER-SCREEN GIMBAL VECTOR RETICLE & PROGRADE / WAYPOINT MARKERS -->
+    <div id="hud-reticle-wrapper" class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[270px] h-[270px] flex items-center justify-center pointer-events-none">
+      <!-- Dynamic Event / Alert Toast above Reticle -->
+      <div id="hud-event-toast" class="hidden absolute -top-11 left-1/2 -translate-x-1/2 whitespace-nowrap px-3 py-1 rounded-full text-[11px] font-mono font-bold bg-cyan-500/25 text-cyan-200 border border-cyan-400/60 shadow-lg">
+        WAYPOINT GATE CLEARED +250
+      </div>
+
+      <!-- Fixed Outer Gimbal Limit Ring (±15° Pitch/Yaw Authority Boundary) & Pitch Ladder -->
+      <svg class="w-full h-full opacity-80" viewBox="-140 -140 280 280">
+        <!-- Outer ±15° Authority Circle -->
+        <circle cx="0" cy="0" r="105" fill="none" stroke="rgba(34, 211, 238, 0.28)" stroke-width="1.2" stroke-dasharray="6 4" />
+        <!-- Inner 5° Precision Docking Circle -->
+        <circle cx="0" cy="0" r="38" fill="none" stroke="rgba(16, 185, 129, 0.30)" stroke-width="1" />
+        <!-- Dynamic Avionics Pitch & Roll Ladder (Rotates with Bank, Shifts with Pitch) -->
+        <g id="hud-pitch-ladder" transform="translate(0,0) rotate(0)">
+          <!-- Horizon Reference Bars -->
+          <line x1="-68" y1="0" x2="-24" y2="0" stroke="rgba(56, 189, 248, 0.45)" stroke-width="1.4" />
+          <line x1="24" y1="0" x2="68" y2="0" stroke="rgba(56, 189, 248, 0.45)" stroke-width="1.4" />
+          <!-- +10° Pitch Rung -->
+          <path d="M -42 -36 L -18 -36 L -18 -30 M 18 -30 L 18 -36 L 42 -36" fill="none" stroke="rgba(34, 211, 238, 0.4)" stroke-width="1.2" />
+          <text x="46" y="-33" fill="rgba(34, 211, 238, 0.55)" font-size="7" font-family="JetBrains Mono">+10</text>
+          <!-- -10° Pitch Rung -->
+          <path d="M -42 36 L -18 36 L -18 30 M 18 30 L 18 36 L 42 36" fill="none" stroke="rgba(34, 211, 238, 0.4)" stroke-width="1.2" stroke-dasharray="4 2" />
+          <text x="46" y="39" fill="rgba(34, 211, 238, 0.55)" font-size="7" font-family="JetBrains Mono">-10</text>
+        </g>
+        <!-- Center Bore Axis Hairlines -->
+        <line x1="-122" y1="0" x2="-92" y2="0" stroke="rgba(34, 211, 238, 0.55)" stroke-width="1.5" />
+        <line x1="92" y1="0" x2="122" y2="0" stroke="rgba(34, 211, 238, 0.55)" stroke-width="1.5" />
+        <line x1="0" y1="-122" x2="0" y2="-92" stroke="rgba(34, 211, 238, 0.55)" stroke-width="1.5" />
+        <line x1="0" y1="92" x2="0" y2="122" stroke="rgba(34, 211, 238, 0.55)" stroke-width="1.5" />
+        <!-- Center Reference Dot -->
+        <circle cx="0" cy="0" r="2.5" fill="rgba(148, 163, 184, 0.6)" />
+        <!-- Corner Brackets -->
+        <path d="M -115 -85 L -115 -115 L -85 -115" fill="none" stroke="rgba(34, 211, 238, 0.45)" stroke-width="1.5" />
+        <path d="M 115 -85 L 115 -115 L 85 -115" fill="none" stroke="rgba(34, 211, 238, 0.45)" stroke-width="1.5" />
+        <path d="M -115 85 L -115 115 L -85 115" fill="none" stroke="rgba(34, 211, 238, 0.45)" stroke-width="1.5" />
+        <path d="M 115 85 L 115 115 L 85 115" fill="none" stroke="rgba(34, 211, 238, 0.45)" stroke-width="1.5" />
+      </svg>
+
+      <!-- Target Waypoint / Docking Alignment Indicator (Cyan/Emerald Diamond) -->
+      <div id="hud-reticle-target" class="absolute w-6 h-6 -ml-3 -mt-3 flex items-center justify-center transition-transform duration-75" style="transform: translate(0px, 0px);">
+        <div class="w-4 h-4 rotate-45 border-2 border-emerald-400 bg-emerald-400/15 shadow-[0_0_10px_#10b981]"></div>
+      </div>
+
+      <!-- Actual Spacecraft Velocity Prograde Marker (Amber Circle with Wings) -->
+      <div id="hud-reticle-prograde" class="absolute w-7 h-7 -ml-3.5 -mt-3.5 flex items-center justify-center transition-transform duration-75" style="transform: translate(0px, 0px);">
+        <div class="w-4 h-4 rounded-full border-2 border-amber-300/90 flex items-center justify-center">
+          <div class="w-1 h-1 rounded-full bg-amber-300"></div>
+        </div>
+      </div>
+
+      <!-- Dynamic Gimbal Nozzle Vector Pip (Moves with Pitch θy & Yaw θx) -->
+      <div id="hud-reticle-gimbal" class="absolute w-9 h-9 -ml-4.5 -mt-4.5 flex items-center justify-center" style="transform: translate(0px, 0px);">
+        <div id="hud-gimbal-ring" class="w-7 h-7 rounded-full border-2 border-cyan-400 shadow-[0_0_14px_#22d3ee] flex items-center justify-center">
+          <div class="w-2 h-2 rounded-full bg-white"></div>
+        </div>
+      </div>
+
+      <!-- Bottom Reticle Telemetry Readout Strip -->
+      <div class="absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap flex items-center gap-2.5 px-3 py-0.5 rounded-md bg-slate-950/85 border border-slate-800 text-[10px] font-mono">
+        <span id="hud-gimbal-angles" class="text-cyan-300">GIMBAL P: +0.0° · Y: +0.0°</span>
+        <span class="text-slate-600">|</span>
+        <span id="hud-rocket-speed" class="text-amber-300">VEL: 18.4 km/s</span>
+        <span class="text-slate-600">|</span>
+        <span id="hud-target-dist" class="text-emerald-300">GATE DIST: 120 m</span>
+      </div>
+    </div>
+
+    <!-- 3. BOTTOM-CENTER VIRTUAL FLIGHT CONTROLS DECK (FOR MOUSE & KEYBOARD FEEDBACK) -->
+    <div class="fixed bottom-16 left-1/2 -translate-x-1/2 px-3 py-2 rounded-xl glass-panel border border-slate-700/80 pointer-events-auto flex flex-wrap items-center justify-center gap-3 shadow-2xl">
+      <!-- 2-Axis Gimbal Pitch/Yaw Pad (WASD) -->
+      <div class="flex items-center gap-1">
+        <div class="grid grid-cols-3 gap-1 w-[108px]">
+          <div></div>
+          <button data-vkey="KeyW" class="vkey-btn py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[10px] font-mono font-bold text-slate-200 text-center" title="Pitch Nozzle Up (+15°)">W</button>
+          <div></div>
+          <button data-vkey="KeyA" class="vkey-btn py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[10px] font-mono font-bold text-slate-200 text-center" title="Yaw Nozzle Left (-15°)">A</button>
+          <button data-vkey="KeyS" id="vkey-s" class="vkey-btn py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[10px] font-mono font-bold text-slate-200 text-center" title="Pitch Nozzle Down (-15°)">S</button>
+          <button data-vkey="KeyD" class="vkey-btn py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[10px] font-mono font-bold text-slate-200 text-center" title="Yaw Nozzle Right (+15°)">D</button>
+        </div>
+        <div class="text-[9px] font-mono text-slate-400 leading-tight hidden sm:block">
+          <div class="text-cyan-400 font-semibold">GIMBAL</div>
+          <div>±15° Vector</div>
+        </div>
+      </div>
+
+      <div class="h-7 w-px bg-slate-800"></div>
+
+      <!-- Throttle & Capacitor Pulse Boost (SHIFT / CTRL / SPACE) -->
+      <div class="flex items-center gap-1.5">
+        <div class="flex flex-col gap-1">
+          <button data-vkey="ShiftLeft" class="vkey-btn px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[9px] font-mono font-bold text-cyan-300" title="Increase Plasma Throttle (SHIFT)">
+            <i class="fa-solid fa-caret-up mr-0.5"></i>SHIFT (Thr+)
+          </button>
+          <button data-vkey="ControlLeft" class="vkey-btn px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[9px] font-mono font-bold text-slate-300" title="Decrease Plasma Throttle (CTRL)">
+            <i class="fa-solid fa-caret-down mr-0.5"></i>CTRL (Thr-)
+          </button>
+        </div>
+
+        <button id="btn-hud-pulse" data-vkey="Space" class="vkey-btn px-3 py-2 rounded-lg bg-gradient-to-r from-amber-500/25 to-cyan-500/25 hover:from-amber-500/40 hover:to-cyan-500/40 border border-amber-400/60 text-[10px] font-mono font-bold text-amber-200 shadow-[0_0_12px_rgba(245,158,11,0.2)] flex flex-col items-center leading-tight" title="Fire Pulsed Plasma Capacitor Boost (SPACE)">
+          <span><i class="fa-solid fa-bolt text-amber-400 mr-1"></i>PULSE</span>
+          <span class="text-[8px] text-cyan-300">[SPACE]</span>
+        </button>
+      </div>
+
+      <div class="h-7 w-px bg-slate-800 hidden sm:block"></div>
+
+      <!-- Magnetic Field Trim (Q / E / F) -->
+      <div class="flex items-center gap-1">
+        <button data-vkey="KeyQ" class="vkey-btn px-2 py-1.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[10px] font-mono font-bold text-emerald-300" title="Decrease Radial Magnetic Field Br (Q)">
+          Q <span class="text-[8px] text-slate-400">B-</span>
+        </button>
+        <button data-vkey="KeyE" class="vkey-btn px-2 py-1.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[10px] font-mono font-bold text-emerald-300" title="Increase Radial Magnetic Field Br (E)">
+          E <span class="text-[8px] text-slate-400">B+</span>
+        </button>
+        <button id="btn-hud-automag" data-vkey="KeyF" class="vkey-btn px-2 py-1.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[10px] font-mono font-bold text-slate-300" title="Toggle Auto-Magnetic Sync (F)">
+          F <span class="text-[8px] text-emerald-400">SYNC</span>
+        </button>
+      </div>
+
+      <div class="h-7 w-px bg-slate-800 hidden md:block"></div>
+
+      <!-- Live Propellant Hot-Swap (1: Xe, 2: Kr, 3: Ar) & Camera (C) -->
+      <div class="hidden md:flex items-center gap-1">
+        <button data-game-prop="Xe" data-vkey="Digit1" class="vkey-btn game-prop-pill active px-2 py-1 rounded bg-blue-500/25 border border-blue-400/60 text-[10px] font-mono font-bold text-blue-300" title="Xenon (1): High Thrust & Heavy Momentum">
+          1:Xe
+        </button>
+        <button data-game-prop="Kr" data-vkey="Digit2" class="vkey-btn game-prop-pill px-2 py-1 rounded bg-slate-900 border border-slate-700 text-[10px] font-mono font-bold text-cyan-300" title="Krypton (2): Balanced Thrust & Isp">
+          2:Kr
+        </button>
+        <button data-game-prop="Ar" data-vkey="Digit3" class="vkey-btn game-prop-pill px-2 py-1 rounded bg-slate-900 border border-slate-700 text-[10px] font-mono font-bold text-fuchsia-300" title="Argon (3): High Exhaust Velocity & Max Fuel Efficiency">
+          3:Ar
+        </button>
+        <button id="btn-hud-cam" data-vkey="KeyC" class="vkey-btn px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[10px] font-mono font-bold text-sky-300 ml-1" title="Cycle Camera View (C)">
+          <i class="fa-solid fa-camera"></i> C
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ====================================================================
+       RIGHT FLOATING TELEMETRY & DIAGNOSTICS PANEL
+       ==================================================================== -->
+  <aside class="fixed top-20 right-3 bottom-14 z-20 w-[375px] max-w-[calc(100vw-24px)] hidden md:flex flex-col rounded-xl glass-panel overflow-y-auto custom-scroll p-4 space-y-3.5">
+
+    <!-- System Diagnostic Status Header -->
+    <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+      <div>
+        <span class="text-[10px] font-mono uppercase tracking-widest text-cyan-400">Live Telemetry &amp; Health</span>
+        <h2 class="text-base font-bold text-white">Propulsion Diagnostics</h2>
+      </div>
+      <div id="status-badge" class="badge-nominal px-2.5 py-1 rounded-full text-[11px] font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/50 flex items-center gap-1.5">
+        <span id="status-dot" class="w-2 h-2 rounded-full bg-emerald-400"></span>
+        <span id="status-text">NOMINAL</span>
+      </div>
+    </div>
+
+    <!-- Dynamic Erosion / Diagnostic Alert Banner -->
+    <div id="diagnostic-banner" class="p-2.5 rounded-lg bg-slate-900/90 border border-slate-800 text-xs text-slate-300 flex items-start gap-2.5 leading-relaxed">
+      <i id="diagnostic-icon" class="fa-solid fa-circle-check text-emerald-400 mt-0.5"></i>
+      <div id="diagnostic-message">
+        Optimal E×B electron trapping achieved. Plume is tightly collimated with minimal Boron Nitride channel wall erosion.
+      </div>
+    </div>
+
+    <!-- Primary KPI Readout Cards (2x2 Grid + Confinement Bar) -->
+    <div class="grid grid-cols-2 gap-2.5">
+      <!-- Thrust (mN) -->
+      <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800/90">
+        <div class="flex items-center justify-between text-[11px] text-slate-400">
+          <span>THRUST (T)</span>
+          <i class="fa-solid fa-gauge-high text-cyan-400"></i>
+        </div>
+        <div class="mt-1 flex items-baseline gap-1.5">
+          <span id="kpi-thrust" class="text-xl font-mono font-bold text-white">83.4</span>
+          <span class="text-xs font-mono text-cyan-400">mN</span>
+        </div>
+        <div id="kpi-thrust-sub" class="text-[10px] font-mono text-slate-400 mt-0.5">
+          Force per 5.0 mg/s flow
+        </div>
+      </div>
+
+      <!-- Specific Impulse Isp (s) -->
+      <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800/90">
+        <div class="flex items-center justify-between text-[11px] text-slate-400">
+          <span>SPECIFIC IMPULSE (I<sub>sp</sub>)</span>
+          <i class="fa-solid fa-rocket text-blue-400"></i>
+        </div>
+        <div class="mt-1 flex items-baseline gap-1.5">
+          <span id="kpi-isp" class="text-xl font-mono font-bold text-white">1,701</span>
+          <span class="text-xs font-mono text-blue-400">s</span>
+        </div>
+        <div id="kpi-isp-sub" class="text-[10px] font-mono text-slate-400 mt-0.5">
+          Propellant efficiency
+        </div>
+      </div>
+
+      <!-- Exhaust Velocity (km/s) -->
+      <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800/90">
+        <div class="flex items-center justify-between text-[11px] text-slate-400">
+          <span>EXHAUST VELOCITY (v<sub>e</sub>)</span>
+          <i class="fa-solid fa-forward-fast text-violet-400"></i>
+        </div>
+        <div class="mt-1 flex items-baseline gap-1.5">
+          <span id="kpi-ve" class="text-xl font-mono font-bold text-white">19.9</span>
+          <span class="text-xs font-mono text-violet-400">km/s</span>
+        </div>
+        <div id="kpi-ve-sub" class="text-[10px] font-mono text-slate-400 mt-0.5">
+          Ion beam speed
+        </div>
+      </div>
+
+      <!-- Discharge Power (W / kW) -->
+      <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800/90">
+        <div class="flex items-center justify-between text-[11px] text-slate-400">
+          <span>DISCHARGE POWER (P)</span>
+          <i class="fa-solid fa-plug-circle-bolt text-amber-400"></i>
+        </div>
+        <div class="mt-1 flex items-baseline gap-1.5">
+          <span id="kpi-power" class="text-xl font-mono font-bold text-white">1,350</span>
+          <span id="kpi-power-unit" class="text-xs font-mono text-amber-400">W</span>
+        </div>
+        <div id="kpi-power-sub" class="text-[10px] font-mono text-slate-400 mt-0.5">
+          I<sub>d</sub> = 4.50 A · 1.35 kW
+        </div>
+      </div>
+    </div>
+
+    <!-- Hall Confinement Efficiency & Plume Divergence Meter -->
+    <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800/90 space-y-2">
+      <div class="flex items-center justify-between">
+        <span class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+          <i class="fa-solid fa-circle-nodes text-cyan-400"></i>
+          <span>Hall Confinement Efficiency (η<sub>mag</sub>)</span>
+        </span>
+        <span id="kpi-etamag" class="text-sm font-mono font-bold text-emerald-400">92.4%</span>
+      </div>
+
+      <div class="w-full h-2.5 bg-slate-950 rounded-full overflow-hidden border border-slate-800 relative">
+        <!-- Sputtering threshold marker at 75% -->
+        <div class="absolute top-0 bottom-0 left-[75%] w-0.5 bg-amber-400/80 z-10" title="Sputtering Threshold (75%)"></div>
+        <div id="bar-etamag" class="h-full bg-gradient-to-r from-emerald-500 to-cyan-400 transition-all duration-200" style="width: 92.4%"></div>
+      </div>
+
+      <div class="flex items-center justify-between text-[10px] font-mono text-slate-400">
+        <span id="kpi-divergence">Plume Half-Angle: 14.2°</span>
+        <span id="kpi-erosion-rate" class="text-emerald-400">Wall Sputtering: LOW</span>
+      </div>
+    </div>
+
+    <!-- Live Chart.js Telemetry Curve (With Thruster Curve / Mission Delta-V Switcher) -->
+    <div class="p-3 rounded-xl bg-slate-900/85 border border-slate-800 flex-1 flex flex-col min-h-[215px]">
+      <div class="flex items-center justify-between gap-2 mb-2">
+        <div class="min-w-0">
+          <h3 id="chart-title" class="text-xs font-bold uppercase tracking-wider text-slate-200 truncate">
+            Thrust &amp; I<sub>sp</sub> vs. Discharge Voltage (V<sub>d</sub>)
+          </h3>
+          <p id="chart-subtitle" class="text-[10px] font-mono text-slate-400 truncate">
+            Active Curve: Xenon (Xe) @ ṁ = 5.0 mg/s, B<sub>r</sub> = 180 G
+          </p>
+        </div>
+
+        <!-- Telemetry Chart Mode Switcher -->
+        <div class="flex items-center gap-1 bg-slate-950 p-0.5 rounded-lg border border-slate-800 shrink-0">
+          <button id="btn-chart-thruster" data-chart-mode="thruster" class="chart-mode-btn active px-2 py-0.5 rounded text-[10px] font-mono border border-transparent text-slate-300">
+            V<sub>d</sub> Curve
+          </button>
+          <button id="btn-chart-mission" data-chart-mode="mission" class="chart-mode-btn px-2 py-0.5 rounded text-[10px] font-mono border border-transparent text-slate-400 hover:text-white">
+            Mission Δv
+          </button>
+        </div>
+      </div>
+      <div class="relative flex-1 w-full min-h-[165px]">
+        <canvas id="telemetry-chart"></canvas>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- ====================================================================
+       BOTTOM VIEWPORT LEGEND & INTERACTIVE CAMERA / PARTICLE HUD BAR
+       ==================================================================== -->
+  <footer class="fixed bottom-3 left-3 right-3 z-20 flex flex-wrap items-center justify-between gap-2 px-4 py-2 rounded-xl glass-panel text-xs">
+    <!-- Particle & Field Color Key -->
+    <div class="flex flex-wrap items-center gap-4">
+      <div class="flex items-center gap-1.5">
+        <span class="w-2.5 h-2.5 rounded-full bg-slate-300 shadow-[0_0_6px_#cbd5e1]"></span>
+        <span class="text-[11px] text-slate-300">Neutral Gas (Xe⁰/Kr⁰/Ar⁰)</span>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <span class="w-2.5 h-2.5 rounded-full bg-amber-300 shadow-[0_0_8px_#fde047]"></span>
+        <span class="text-[11px] text-slate-300">Hall Electrons (E×B Drift)</span>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <span id="legend-ion-dot" class="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-[0_0_10px_#3b82f6]"></span>
+        <span id="legend-ion-label" class="text-[11px] text-slate-300">Accelerated Ions (Xe⁺ Beam)</span>
+      </div>
+      <div class="hidden md:flex items-center gap-1.5">
+        <span class="w-3 h-0.5 bg-red-500 shadow-[0_0_6px_#ef4444]"></span>
+        <span class="text-[11px] text-slate-300">Axial E<sub>z</sub> Field</span>
+      </div>
+      <div class="hidden md:flex items-center gap-1.5">
+        <span class="w-3 h-0.5 bg-emerald-400 shadow-[0_0_6px_#34d399]"></span>
+        <span class="text-[11px] text-slate-300">Radial B<sub>r</sub> Field</span>
+      </div>
+    </div>
+
+    <!-- Interactive Controls Hint -->
+    <div class="hidden sm:flex items-center gap-3 text-[11px] font-mono text-slate-400">
+      <span><i class="fa-solid fa-computer-mouse text-cyan-400 mr-1"></i>LMB: Orbit · RMB: Pan · Scroll: Zoom · Click 3D Part: Inspect</span>
+    </div>
+  </footer>
+
+  <!-- ====================================================================
+       EXTERNAL LIBRARIES (THREE.JS + POSTPROCESSING + CHART.JS)
+       ==================================================================== -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <!-- Main Application Script -->
+  <script src="app.js"></script>
+</body>
+</html>
